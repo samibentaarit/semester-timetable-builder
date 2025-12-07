@@ -15,6 +15,9 @@ import { defaultClassSubjectTeachers } from "@/lib/teacher-assignment-data"
 import type { ClassSubjectTeacher, TeacherAssignmentConflict, TeacherWorkload } from "@/types/teacher-assignments"
 import type { GradeSubjectAllocation } from "@/types/timetable"
 
+// Import Toast
+import { Toaster, toast } from "react-hot-toast"
+
 interface TeacherAssignmentManagerProps {
   allocations: GradeSubjectAllocation[]
   onAssignmentsChange: (assignments: ClassSubjectTeacher[]) => void
@@ -28,12 +31,10 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
   const [selectedTeacher, setSelectedTeacher] = useState<string>("")
   const [searchTerm, setSearchTerm] = useState("")
 
-  // Calculate teacher workloads
   const teacherWorkloads = useMemo((): TeacherWorkload[] => {
     return teachers.map((teacher) => {
       const teacherAssignments = assignments.filter((a) => a.teacherId === teacher.id && a.isActive)
       const subjectWorkloads = new Map<string, { count: number; hours: number }>()
-
       let totalWeeklyHours = 0
 
       teacherAssignments.forEach((assignment) => {
@@ -42,7 +43,6 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
           const allocation = allocations.find(
             (a) => a.gradeId === classSection.gradeId && a.subjectId === assignment.subjectId,
           )
-
           if (allocation) {
             const current = subjectWorkloads.get(assignment.subjectId) || { count: 0, hours: 0 }
             subjectWorkloads.set(assignment.subjectId, {
@@ -75,7 +75,6 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
     (currentAssignments: ClassSubjectTeacher[]): TeacherAssignmentConflict[] => {
       const newConflicts: TeacherAssignmentConflict[] = []
 
-      // Check for teacher-subject qualification mismatches
       currentAssignments.forEach((assignment) => {
         const teacher = teachers.find((t) => t.id === assignment.teacherId)
         if (teacher && !teacher.subjects.includes(assignment.subjectId)) {
@@ -93,7 +92,6 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
         }
       })
 
-      // Check for teacher overcommitment
       teacherWorkloads.forEach((workload) => {
         if (workload.utilizationPercentage > 100) {
           newConflicts.push({
@@ -116,23 +114,24 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
   )
 
   const addAssignment = () => {
-    if (!selectedClass || !selectedSubject || !selectedTeacher) return
+    if (!selectedClass || !selectedSubject || !selectedTeacher) {
+      toast.error("Please select class, subject, and teacher")
+      return
+    }
 
-    // Check if assignment already exists (this should not happen with our filtering, but as a safeguard)
     const existingAssignment = assignments.find(
       (a) => a.classId === selectedClass && a.subjectId === selectedSubject && a.isActive,
     )
 
     if (existingAssignment) {
-      // Update existing assignment with new teacher
       const updatedAssignments = assignments.map((a) =>
         a.id === existingAssignment.id ? { ...a, teacherId: selectedTeacher, updatedAt: new Date().toISOString() } : a,
       )
       setAssignments(updatedAssignments)
       setConflicts(validateAssignments(updatedAssignments))
       onAssignmentsChange(updatedAssignments)
+      toast.success("Assignment updated successfully")
     } else {
-      // Create new assignment
       const newAssignment: ClassSubjectTeacher = {
         id: Date.now().toString(),
         classId: selectedClass,
@@ -147,15 +146,14 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
       setAssignments(updatedAssignments)
       setConflicts(validateAssignments(updatedAssignments))
       onAssignmentsChange(updatedAssignments)
+      toast.success("Assignment added successfully")
     }
 
-    // Reset form
     setSelectedClass("")
     setSelectedSubject("")
     setSelectedTeacher("")
   }
 
-  // Remove assignment
   const removeAssignment = (assignmentId: string) => {
     const updatedAssignments = assignments.map((a) =>
       a.id === assignmentId ? { ...a, isActive: false, updatedAt: new Date().toISOString() } : a,
@@ -163,43 +161,32 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
     setAssignments(updatedAssignments)
     setConflicts(validateAssignments(updatedAssignments))
     onAssignmentsChange(updatedAssignments)
+    toast.success("Assignment removed successfully")
   }
 
-  // Get available subjects for selected class (excluding already assigned ones)
   const getAvailableSubjects = () => {
     if (!selectedClass) return []
-
     const classSection = classSections.find((c) => c.id === selectedClass)
     if (!classSection) return []
-
-    // Get subjects that are allocated for this grade
     const gradeSubjects = subjects.filter((subject) =>
       allocations.some((a) => a.gradeId === classSection.gradeId && a.subjectId === subject.id),
     )
-
-    // Filter out subjects that are already assigned to this class
     const alreadyAssignedSubjects = assignments
       .filter((a) => a.classId === selectedClass && a.isActive)
       .map((a) => a.subjectId)
-
     return gradeSubjects.filter((subject) => !alreadyAssignedSubjects.includes(subject.id))
   }
 
-  // Get qualified teachers for selected subject
   const getQualifiedTeachers = () => {
     if (!selectedSubject) return []
-
     return teachers.filter((teacher) => teacher.subjects.includes(selectedSubject))
   }
 
-  // Filter assignments based on search
   const filteredAssignments = assignments.filter((assignment) => {
     if (!assignment.isActive) return false
-
     const classSection = classSections.find((c) => c.id === assignment.classId)
     const subject = subjects.find((s) => s.id === assignment.subjectId)
     const teacher = teachers.find((t) => t.id === assignment.teacherId)
-
     const searchLower = searchTerm.toLowerCase()
     return (
       classSection?.name.toLowerCase().includes(searchLower) ||
@@ -210,6 +197,9 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
 
   return (
     <div className="space-y-6">
+      {/* Toast container */}
+      <Toaster />
+
       {/* Header */}
       <Card>
         <CardHeader>
@@ -244,6 +234,7 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
         </Alert>
       )}
 
+      {/* Tabs */}
       <Tabs defaultValue="assignments" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="assignments">Assignments</TabsTrigger>
@@ -251,6 +242,7 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
           <TabsTrigger value="conflicts">Conflicts & Issues</TabsTrigger>
         </TabsList>
 
+        {/* Assignments Tab */}
         <TabsContent value="assignments" className="space-y-4">
           {/* Add New Assignment */}
           <Card>
@@ -287,20 +279,11 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
                     <SelectContent>
                       {getAvailableSubjects().map((subject) => (
                         <SelectItem key={subject.id} value={subject.id}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: subject.color }} />
-                            {subject.name}
-                          </div>
+                          {subject.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {selectedClass && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {getAvailableSubjects().length} subjects available,{" "}
-                      {assignments.filter((a) => a.classId === selectedClass && a.isActive).length} already assigned
-                    </div>
-                  )}
                 </div>
 
                 <div>
@@ -312,10 +295,7 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
                     <SelectContent>
                       {getQualifiedTeachers().map((teacher) => (
                         <SelectItem key={teacher.id} value={teacher.id}>
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4" />
-                            {teacher.name}
-                          </div>
+                          {teacher.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -336,13 +316,13 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
             </CardContent>
           </Card>
 
-          {/* Search and Filter */}
+          {/* Search */}
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-2">
                 <Search className="h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search assignments by class, subject, or teacher..."
+                  placeholder="Search assignments..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="flex-1"
@@ -362,39 +342,16 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
 
               return (
                 <Card key={assignment.id} className={hasConflict ? "border-destructive" : ""}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{classSection?.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: subject?.color }} />
-                          <span>{subject?.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span>{teacher?.name}</span>
-                          {!isQualified && (
-                            <Badge variant="destructive" className="text-xs">
-                              Not Qualified
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isQualified && !hasConflict && (
-                          <Badge variant="default" className="text-xs">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Valid
-                          </Badge>
-                        )}
-                        <Button variant="ghost" size="sm" onClick={() => removeAssignment(assignment.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                  <CardContent className="pt-6 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <span>{classSection?.name}</span>
+                      <span>{subject?.name}</span>
+                      <span>{teacher?.name}</span>
+                      {!isQualified && <Badge variant="destructive" className="text-xs">Not Qualified</Badge>}
                     </div>
+                    <Button variant="ghost" size="sm" onClick={() => removeAssignment(assignment.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </CardContent>
                 </Card>
               )
@@ -402,102 +359,53 @@ export function TeacherAssignmentManager({ allocations, onAssignmentsChange }: T
           </div>
         </TabsContent>
 
+        {/* Workload Tab */}
         <TabsContent value="workload" className="space-y-4">
-          <div className="grid gap-4">
-            {teacherWorkloads.map((workload) => (
-              <Card key={workload.teacherId}>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <User className="h-5 w-5" />
-                      {workload.teacherName}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={
-                          workload.utilizationPercentage > 100
-                            ? "destructive"
-                            : workload.utilizationPercentage > 80
-                              ? "default"
-                              : "secondary"
-                        }
-                      >
-                        {workload.utilizationPercentage}% Utilized
-                      </Badge>
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">Classes: {workload.totalClasses}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">
-                        Hours: {workload.totalWeeklyHours}/{workload.weeklyHourLimit}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">Utilization: {workload.utilizationPercentage}%</span>
-                    </div>
-                  </div>
-
-                  {workload.subjects.length > 0 && (
-                    <div>
-                      <h4 className="font-medium mb-2">Subject Breakdown</h4>
-                      <div className="space-y-2">
-                        {workload.subjects.map((subject) => (
-                          <div key={subject.subjectId} className="flex items-center justify-between text-sm">
-                            <span>{subject.subjectName}</span>
-                            <span className="text-muted-foreground">
-                              {subject.classCount} classes, {subject.estimatedWeeklyHours}h/week
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {teacherWorkloads.map((workload) => (
+            <Card key={workload.teacherId}>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>{workload.teacherName}</span>
+                  <Badge
+                    variant={
+                      workload.utilizationPercentage > 100
+                        ? "destructive"
+                        : workload.utilizationPercentage > 80
+                          ? "default"
+                          : "secondary"
+                    }
+                  >
+                    {workload.utilizationPercentage}% Utilized
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4">
+                  <span>Classes: {workload.totalClasses}</span>
+                  <span>Hours: {workload.totalWeeklyHours}/{workload.weeklyHourLimit}</span>
+                  <span>Utilization: {workload.utilizationPercentage}%</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </TabsContent>
 
+        {/* Conflicts Tab */}
         <TabsContent value="conflicts" className="space-y-4">
           {conflicts.length === 0 ? (
             <Card>
               <CardContent className="pt-6 text-center">
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                <h3 className="font-medium mb-2">No Conflicts Detected</h3>
-                <p className="text-muted-foreground">All teacher assignments are valid and conflict-free.</p>
+                <h3>No Conflicts Detected</h3>
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
-              {conflicts.map((conflict, index) => (
-                <Alert key={index} variant={conflict.severity === "error" ? "destructive" : "default"}>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    <div className="space-y-2">
-                      <div className="font-medium">{conflict.message}</div>
-                      {conflict.suggestions && (
-                        <div className="text-sm">
-                          <div className="font-medium mb-1">Suggestions:</div>
-                          <ul className="list-disc list-inside space-y-1">
-                            {conflict.suggestions.map((suggestion, idx) => (
-                              <li key={idx}>{suggestion}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </AlertDescription>
-                </Alert>
-              ))}
-            </div>
+            conflicts.map((conflict, index) => (
+              <Alert key={index} variant={conflict.severity === "error" ? "destructive" : "default"}>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{conflict.message}</AlertDescription>
+              </Alert>
+            ))
           )}
         </TabsContent>
       </Tabs>
