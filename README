@@ -1,0 +1,44 @@
+# Semester Timetable Builder
+
+![GitHub license](https://img.shields.io/badge/license-MIT-green)
+![Next.js](https://img.shields.io/badge/Next.js-14.2-blue)
+![React](https://img.shields.io/badge/React-19-blueviolet)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+
+**Semester Timetable Builder** est une application web open source permettant aux étudiants de générer et gérer leurs emplois du temps de semestre de manière simple et interactive.
+
+---
+
+##  Technologies utilisées
+
+- **Frontend** : Next.js 14.2  
+- **React** : 19  
+- **TypeScript** : 5  
+- **Notifications** : [react-toastify](https://www.npmjs.com/package/react-toastify)  
+- **Styles** : Tailwind CSS 
+- **Gestion de projet** : GitHub  
+
+---
+
+## Fonctionnalités principales
+
+- Création et gestion d’un emploi du temps de semestre.  
+- Ajout, modification et suppression de cours.  
+- **Notifications Toast** pour informer l’utilisateur des actions importantes :  
+  - Ajout ou suppression d’un cours  
+  - Conflits détectés dans l’emploi du temps  
+  - Actions réussies ou erreurs  
+- Interface responsive et interactive.  
+
+---
+
+## Installation
+
+### 1. Cloner le projet
+```bash
+git clone https://github.com/samibentaarit/semester-timetable-builder.git
+cd semester-timetable-builder
+2. Installer les dépendances
+npm install
+3. Lancer le projet
+npm run dev
